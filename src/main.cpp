@@ -3,6 +3,7 @@
 #include <AnimatedGIF.h>
 #include <SPI.h>
 #include <SD.h>
+
 #define SD_CS    5   //SS
 MatrixPanel_I2S_DMA matrix;
 AnimatedGIF gif;
@@ -27,6 +28,19 @@ File f;
 #define OE_PIN  22
 
 #define CLK_PIN 16
+
+#define BLINKER_WIFI
+#define BLINKER_MIOT_OUTLET
+#include <Blinker.h>
+
+// TODO: replace with your blinker secret key.
+char auth[] = "";
+
+// TODO: replace with your WiFi connection information
+char ssid[] = "";
+char pswd[] = "";
+bool oState = false;
+
 
 
 void GIFDraw(GIFDRAW *pDraw)
@@ -185,14 +199,70 @@ void ShowGIF(char *name)
 
 
 
+
+
+void miotPowerState(const String & state)
+{
+    BLINKER_LOG("need set power state: ", state);
+
+    if (state == BLINKER_CMD_ON) {
+        ShowGIF("/niu.gif");
+
+        //digitalWrite(LED_BUILTIN, HIGH);
+
+        BlinkerMIOT.powerState("on");
+        BlinkerMIOT.print();
+        oState = true;
+    }
+    else if (state == BLINKER_CMD_OFF) {
+        //digitalWrite(LED_BUILTIN, LOW);
+        matrix.clearScreen();
+        BlinkerMIOT.powerState("off");
+        BlinkerMIOT.print();
+        oState = false;
+    }
+}
+
+void miotQuery(int32_t queryCode)
+{
+    BLINKER_LOG("MIOT Query codes: ", queryCode);
+
+    switch (queryCode)
+    {
+        case BLINKER_CMD_QUERY_ALL_NUMBER :
+            BLINKER_LOG("MIOT Query All");
+            BlinkerMIOT.powerState(oState ? "on" : "off");
+            BlinkerMIOT.print();
+            break;
+        case BLINKER_CMD_QUERY_POWERSTATE_NUMBER :
+            BLINKER_LOG("MIOT Query Power State");
+            BlinkerMIOT.powerState(oState ? "on" : "off");
+            BlinkerMIOT.print();
+            break;
+        default :
+            BlinkerMIOT.powerState(oState ? "on" : "off");
+            BlinkerMIOT.print();
+            break;
+    }
+}
+
+void dataRead(const String & data)
+{
+    BLINKER_LOG("Blinker readString: ", data);
+
+    Blinker.vibrate();
+    
+    uint32_t BlinkerTime = millis();
+    
+    Blinker.print("millis", BlinkerTime);
+}
 void setup() {
   Serial.begin(115200);
 
-  matrix.setPanelBrightness(32);
-  matrix.setMinRefreshRate(200);
-  matrix.begin(R1_PIN, G1_PIN, B1_PIN, R2_PIN, G2_PIN, B2_PIN, A_PIN, B_PIN, C_PIN, D_PIN, E_PIN, LAT_PIN, OE_PIN, CLK_PIN );  // or custom pins
+  matrix.begin(R1_PIN, G1_PIN, B1_PIN, R2_PIN, G2_PIN, B2_PIN, A_PIN, B_PIN, C_PIN, D_PIN, E_PIN, LAT_PIN, OE_PIN, CLK_PIN );  
   
 
+  // Prepare SD card
   if(!SD.begin(SD_CS)){
       Serial.println("Card Mount Failed");
       return;
@@ -228,14 +298,29 @@ void setup() {
     Serial.printf("Space available: %u MB \n", spaceAvailableInMB);
  
     uint64_t spaceUsed = SD.usedBytes(); 
-    Serial.printf("Space used: %u bytes", spaceUsed);
+    Serial.printf("Space used: %llu bytes\n", spaceUsed);
 
     #endif
     matrix.fillScreen(matrix.color565(0, 0, 0));
     gif.begin(LITTLE_ENDIAN_PIXELS);   
   }
+  BLINKER_DEBUG.stream(Serial);
+  BLINKER_DEBUG.debugAll();
+  Blinker.begin(auth,ssid,pswd);
+  Blinker.attachData(dataRead);
+
+  BlinkerMIOT.attachPowerState(miotPowerState);
+  BlinkerMIOT.attachQuery(miotQuery);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+ Blinker.run();
+ if(oState)
+ {
+   ShowGIF("/niu.gif");
+ }
+ else
+ {
+   matrix.clearScreen();
+ }
 }
