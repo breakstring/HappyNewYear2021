@@ -5,3 +5,5 @@
 
 ## 演示
 ![演示](media/demo.gif)
+
+[完整视频](media/demo.mp4)
